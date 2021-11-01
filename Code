@@ -1,0 +1,119 @@
+import os
+import natsort
+import cv2
+import numpy as np
+import PIL.Image as Image
+import sys
+imglist = os.listdir(r'C:\Users\10046\OneDrive - stevens.edu\2021 fall CS559 Machine Learning Fundamentals and Applications\face_data')
+imglist = natsort.natsorted(imglist)
+
+def asRowMatrix(X):
+    if len(X) == 0:
+        return np.array([])
+    mat = np.empty((0, X[0].size), dtype=X[0].dtype)
+    for row in X:
+        mat = np.vstack((mat, np.asarray(row).reshape(1,-1)))
+    return mat
+
+def reconstruct(W, Y, mu=None):
+    if mu is None:
+        return np.dot(Y, W.T)
+    return np.dot(Y, W.T) + mu
+
+def project(W, X, mu=None):
+    if mu is None:
+        return np.dot(X,W)
+    return np.dot(X - mu, W)
+def pca(X, y, num_components=0):
+    [n, d] = X.shape
+    if (num_components <= 0) or (num_components > n):
+        num_components = n
+    mu = X.mean(axis=0)
+    X = X - mu
+    if n > d:
+        C = np.dot(X.T, X)
+        [eigenvalues, eigenvectors] = np.linalg.eigh(C)
+    else:
+        C = np.dot(X, X.T)
+        [eigenvalues, eigenvectors] = np.linalg.eigh(C)
+        eigenvectors = np.dot(X.T, eigenvectors)
+        for i in xrange(n):
+            eigenvectors[:, i] = eigenvectors[:, i] / np.linalg.norm(eigenvectors[:, i])
+    
+    idx = np.argsort(-eigenvalues)
+    eigenvalues = eigenvalues[idx]
+    eigenvectors = eigenvectors[:, idx]
+   
+    eigenvalues = eigenvalues[0:num_components].copy()
+    eigenvectors = eigenvectors[:, 0:num_components].copy()
+    return [eigenvalues, eigenvectors, mu]
+
+
+def Humanfaces(X, y, num_components):
+    y = np.asarray(y)
+    # print X.shape
+    [n, d] = X.shape
+    c = len(np.unique(y))
+    [eigenvalues_pca, eigenvectors_pca, mu_pca] = pca(X, y, num_components)
+    return [eigenvalues_pca, eigenvectors_pca, mu_pca]
+
+def read_images(path):
+    c = 0
+    X, y = [], []
+    for dirname, dirnames, filenames in os.walk(path):
+        for subdirname in dirnames:
+            subject_path = os.path.join(dirname, subdirname)
+            for filename in os.listdir(subject_path):
+                try:
+                    im = Image.open(os.path.join(subject_path, filename))
+                    im = im.convert("L")
+                    X.append(np.asarray(im, dtype=np.uint8))
+                    y.append(c)
+                except IOError:
+                    print("I/O error({0}): {1}".format(errno, strerror))
+                except:
+                    print ("Unexpected error:", sys.exc_info()[0])
+                    raise
+            c = c + 1
+    return [X, y]
+
+def HumanfacesModel(X,y,train=True):
+    num_components = 30
+    [D, W, mu] = Humanfaces(asRowMatrix(X), y, num_components)
+    return W,mu
+
+def dist_metric(p, q):
+    p = np.asarray(p).flatten()
+    q = np.asarray(q).flatten()
+    return np.sqrt(np.sum(np.power((p - q), 2)))
+
+def predict(W,mu,projections,y,X):
+    minDist = np.finfo('float').max
+    # print minDist
+    minClass = -1
+    Q = project(W, X.reshape(1, -1), mu)
+    for i in xrange(len(projections)):
+        dist = dist_metric(projections[i], Q)
+        if dist < minDist:
+            minDist = dist
+            minClass = y[i]
+    return minClass
+
+if __name__ == '__main__':
+    ###train
+    [X, y] = read_images(r'C:\Users\10046\OneDrive - stevens.edu\2021 fall CS559 Machine Learning Fundamentals and Applications\face_data\Train')
+    # print y
+    W,mu= HumanfacesModel(X, y)
+    projections = []
+    for xi in X:
+        projections.append(project(W, xi.reshape(1, -1), mu))
+    ##test
+    [Xtest, ytest] = read_images(r'C:\Users\10046\OneDrive - stevens.edu\2021 fall CS559 Machine Learning Fundamentals and Applications\face_data\Test')
+    accurancy = 0
+    for i in range(len(Xtest)):
+        pred = predict(W,mu,projections,y,Xtest[i])
+        if pred == ytest[i]:
+            accurancy += 1
+    print (accurancy)
+    print ("accurancy:",accurancy*1.0/len(Xtest))
+ 
