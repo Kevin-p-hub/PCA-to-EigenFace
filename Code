@@ -7,6 +7,27 @@ import sys
 imglist = os.listdir(r'C:\Users\10046\OneDrive - stevens.edu\2021 fall CS559 Machine Learning Fundamentals and Applications\face_data')
 imglist = natsort.natsorted(imglist)
 
+def read_images(path):
+    c = 0
+    X, y = [], []
+    for dirname, dirnames, filenames in os.walk(path):
+        for subdirname in dirnames:
+            subject_path = os.path.join(dirname, subdirname)
+            for filename in os.listdir(subject_path):
+                try:
+                    im = Image.open(os.path.join(subject_path, filename))
+                    im = im.convert("L")
+                    X.append(np.asarray(im, dtype=np.uint8))
+                    y.append(c)
+                except IOError:
+                    print("I/O error({0}): {1}".format(errno, strerror))
+                except:
+                    print ("Unexpected error:", sys.exc_info()[0])
+                    raise
+            c = c + 1
+    return [X, y]
+
+
 def asRowMatrix(X):
     if len(X) == 0:
         return np.array([])
@@ -25,7 +46,7 @@ def project(W, X, mu=None):
         return np.dot(X,W)
     return np.dot(X - mu, W)
 def pca(X, y, num_components=0):
-    [n, d] = X.shape
+    n, d = X.shape
     if (num_components <= 0) or (num_components > n):
         num_components = n
     mu = X.mean(axis=0)
@@ -52,30 +73,12 @@ def pca(X, y, num_components=0):
 def Humanfaces(X, y, num_components):
     y = np.asarray(y)
     # print X.shape
-    [n, d] = X.shape
+    n, d = X.shape
     c = len(np.unique(y))
     [eigenvalues_pca, eigenvectors_pca, mu_pca] = pca(X, y, num_components)
     return [eigenvalues_pca, eigenvectors_pca, mu_pca]
+    print(X.shape)
 
-def read_images(path):
-    c = 0
-    X, y = [], []
-    for dirname, dirnames, filenames in os.walk(path):
-        for subdirname in dirnames:
-            subject_path = os.path.join(dirname, subdirname)
-            for filename in os.listdir(subject_path):
-                try:
-                    im = Image.open(os.path.join(subject_path, filename))
-                    im = im.convert("L")
-                    X.append(np.asarray(im, dtype=np.uint8))
-                    y.append(c)
-                except IOError:
-                    print("I/O error({0}): {1}".format(errno, strerror))
-                except:
-                    print ("Unexpected error:", sys.exc_info()[0])
-                    raise
-            c = c + 1
-    return [X, y]
 
 def HumanfacesModel(X,y,train=True):
     num_components = 30
@@ -100,6 +103,7 @@ def predict(W,mu,projections,y,X):
     return minClass
 
 if __name__ == '__main__':
+    ##########################
     ###train
     [X, y] = read_images(r'C:\Users\10046\OneDrive - stevens.edu\2021 fall CS559 Machine Learning Fundamentals and Applications\face_data\Train')
     # print y
@@ -107,11 +111,15 @@ if __name__ == '__main__':
     projections = []
     for xi in X:
         projections.append(project(W, xi.reshape(1, -1), mu))
+    # projections = np.array(projections)
+    # print projections.shape
+    ########################
     ##test
     [Xtest, ytest] = read_images(r'C:\Users\10046\OneDrive - stevens.edu\2021 fall CS559 Machine Learning Fundamentals and Applications\face_data\Test')
     accurancy = 0
     for i in range(len(Xtest)):
         pred = predict(W,mu,projections,y,Xtest[i])
+        # print "expected =", ytest[i], "/", "predicted =", pred
         if pred == ytest[i]:
             accurancy += 1
     print (accurancy)
